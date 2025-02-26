@@ -14,6 +14,11 @@ export async function GET(): Promise<NextResponse> {
     isDraw: false,
     playerTurn: "X",
     playerCount: 0,
+    // Initialize win count
+    winCount: {
+      player1: 0,
+      player2: 0
+    }
   };
   await setGameState(gameId, initialState);
   return NextResponse.json({ gameId });
