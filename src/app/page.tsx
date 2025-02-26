@@ -1,101 +1,159 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState, useEffect, Suspense } from "react";
+import GameBoard from "@/components/GameBoard";
+import PlayerSelection from "@/components/PlayerSelection";
+import styles from "./page.module.css";
+import { motion } from "framer-motion";
+import { useSearchParams, useRouter } from "next/navigation";
+import { GameState } from "@/lib/types"; // Import from types.ts
+
+function GameContent() {
+  const [players, setPlayers] = useState<{
+    player1: string;
+    player2: string;
+  } | null>(null);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [gameId, setGameId] = useState<string | null>(null);
+  const [playerSymbol, setPlayerSymbol] = useState<"X" | "O" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    const id = searchParams.get("gameId");
+    if (id && !gameStarted) {
+      setGameId(id);
+      joinGame(id);
+    }
+  }, [searchParams]);
+
+  const joinGame = async (id: string) => {
+    try {
+      const response = await fetch(`/api/game/${id}`);
+      if (response.ok) {
+        const state: GameState = await response.json();
+        if (state.playerCount < 2) {
+          const updatedState: GameState = {
+            ...state,
+            playerCount: state.playerCount + 1,
+            players: {
+              player1: state.players.player1 || "Player 1",
+              player2: state.players.player2 || "Player 2",
+            },
+          };
+          if (!state.players.player1) {
+            updatedState.players.player1 = "Player 1";
+          } else if (!state.players.player2) {
+            updatedState.players.player2 = "Player 2";
+          }
+          await fetch(`/api/game/${id}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedState),
+          });
+          setPlayers(updatedState.players);
+          setPlayerSymbol(state.playerCount === 0 ? "X" : "O");
+          setGameStarted(true);
+        } else {
+          setError("Game is full");
+          router.push("/");
+        }
+      } else {
+        setError("Game not found");
+        router.push("/");
+      }
+    } catch (error) {
+      console.error("Error joining game:", error);
+      setError("Error joining game");
+      router.push("/");
+    }
+  };
+
+  const startGame = async (playerNames: {
+    player1: string;
+    player2: string;
+  }) => {
+    const response = await fetch("/api/new-game");
+    const { gameId: newGameId } = await response.json();
+
+    const initialState: GameState = {
+      board: Array(9).fill(null),
+      moveHistory: [],
+      currentPlayer: "X",
+      winner: null,
+      players: { player1: playerNames.player1, player2: "" },
+      isDraw: false,
+      playerTurn: "X",
+      playerCount: 1,
+    };
+    await fetch(`/api/game/${newGameId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(initialState),
+    });
+
+    setPlayers(initialState.players);
+    setGameId(newGameId);
+    setPlayerSymbol("X");
+    setGameStarted(true);
+    router.push(`/?gameId=${newGameId}`, { scroll: false });
+  };
+
+  const resetGame = async () => {
+    if (gameId) {
+      await fetch(`/api/game/${gameId}`, { method: "DELETE" });
+    }
+    setPlayers(null);
+    setGameStarted(false);
+    setGameId(null);
+    setPlayerSymbol(null);
+    setError(null);
+    router.push("/", { scroll: false });
+  };
+
+  return (
+    <main className={styles.app}>
+      <motion.h1
+        className={styles.title}
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        Vanishing Tic Tac Toe
+      </motion.h1>
+      {error && <div className={styles.error}>{error}</div>}
+      {gameStarted && gameId && !error && (
+        <div className={styles.gameLink}>
+          Share this link: {window.location.href}
+          <button
+            onClick={() => navigator.clipboard.writeText(window.location.href)}
+            className={styles.copyButton}
+          >
+            Copy
+          </button>
+        </div>
+      )}
+      {!gameStarted ? (
+        <PlayerSelection onStart={startGame} joinGame={joinGame} />
+      ) : gameId && players && playerSymbol ? (
+        <GameBoard
+          players={players}
+          onReset={resetGame}
+          gameId={gameId}
+          playerSymbol={playerSymbol}
+        />
+      ) : (
+        <div className={styles.loading}>Loading game...</div>
+      )}
+    </main>
+  );
+}
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+    <Suspense fallback={<div className={styles.loading}>Loading...</div>}>
+      <GameContent />
+    </Suspense>
   );
 }
