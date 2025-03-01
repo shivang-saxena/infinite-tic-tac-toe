@@ -111,7 +111,7 @@ function GameContent() {
       const savedGamesJson = localStorage.getItem("ticTacToeSavedGames");
       if (savedGamesJson) {
         const games = JSON.parse(savedGamesJson);
-        const savedGame = games.find((g) => g.id === id);
+        const savedGame = games.find((game: { id: string }) => game.id === id);
         if (savedGame) {
           // If we're the first player in local storage, use X, otherwise O
           setPlayerSymbol(savedGame.players.player1 ? "X" : "O");
@@ -193,7 +193,9 @@ function GameContent() {
       const savedGamesJson = localStorage.getItem("ticTacToeSavedGames");
       const savedGames = savedGamesJson ? JSON.parse(savedGamesJson) : [];
 
-      const existingIndex = savedGames.findIndex((game: any) => game.id === id);
+      const existingIndex = savedGames.findIndex(
+        (game: { id: string }) => game.id === id
+      );
       const updatedGame = {
         id,
         players,
